@@ -190,24 +190,26 @@ func (s *server) handleReceivedMsg(req *request) {
 			readBuffer := s.readBuffer[clientConnId]
 
 			// ignore data messages whose seq num is smaller than the expected seq num
+			// epoch handler will resend the acks that haven't been received on the other side (if their seq num is smaller than expected seq num)
+			// and the same size of sliding window on both sending and receiving side guarantee the correctness, otherwise we may have to send ack
+			// for every data message we receive no matter whether its seq num is larger or smaller than the expected seq num
 			if receivedMsg.SeqNum >= s.expectedSeqNum[clientConnId] {
 				readBuffer.Insert(receivedMsg)
-			}
+				// send ack for the data message and put the ack into latestAck buffer
+				latestAckBuffer := s.latestAckBuffer[clientConnId]
+				ackMsg := NewAck(clientConnId, receivedMsg.SeqNum)
+				s.networkUtility.sendMessageToAddr(clientAddr, ackMsg)
 
-			// send ack for the data message and put the ack into latestAck buffer
-			latestAckBuffer := s.latestAckBuffer[clientConnId]
-			ackMsg := NewAck(clientConnId, receivedMsg.SeqNum)
-			s.networkUtility.sendMessageToAddr(clientAddr, ackMsg)
+				latestAckBuffer.Insert(ackMsg)
+				// adjust the buffer to conform sliding window size
+				latestAckBuffer.AdjustUsingWindow(s.params.WindowSize)
 
-			latestAckBuffer.Insert(ackMsg)
-			// adjust the buffer to conform sliding window size
-			latestAckBuffer.AdjustUsingWindow(s.params.WindowSize)
-
-			// wake a deferred read reqeusts up if the seq num of incoming message equals the expected seq num of the connection
-			if receivedMsg.SeqNum == s.expectedSeqNum[clientConnId] && s.deferedRead.Len() > 0 {
-				readReq := s.deferedRead.Front().Value.(*request)
-				s.deferedRead.Remove(s.deferedRead.Front())
-				s.handleRead(readReq)
+				// wake a deferred read reqeusts up if the seq num of incoming message equals the expected seq num of the connection
+				if receivedMsg.SeqNum == s.expectedSeqNum[clientConnId] && s.deferedRead.Len() > 0 {
+					readReq := s.deferedRead.Front().Value.(*request)
+					s.deferedRead.Remove(s.deferedRead.Front())
+					s.handleRead(readReq)
+				}
 			}
 		}
 	}

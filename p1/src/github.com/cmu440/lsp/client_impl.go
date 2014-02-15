@@ -244,17 +244,19 @@ func (c *client) handleReceivedMsg(req *request) {
 		}
 
 		// ignore messages whose seq num is smaller than expected seq num
+		// epoch handler will resend the acks that haven't been received on the other side (if their seq num is smaller than expected seq num)
+		// and the same size of sliding window on both sending and receiving side guarantee the correctness, otherwise we may have to send ack
+		// for every data message we receive no matter whether its seq num is larger or smaller than the expected seq num
 		if receivedMsg.SeqNum >= c.expectedSeqNum {
 			c.readBuffer.Insert(receivedMsg)
+			// send ack for the data message and store the ack to latest sent ack buffer
+			ackMsg := NewAck(c.connId, receivedMsg.SeqNum)
+			// send ack message out
+			c.networkUtility.sendMessage(ackMsg)
+
+			c.latestAckBuffer.Insert(ackMsg)
+			c.latestAckBuffer.AdjustUsingWindow(c.params.WindowSize)
 		}
-
-		// send ack for the data message and store the ack to latest sent ack buffer
-		ackMsg := NewAck(c.connId, receivedMsg.SeqNum)
-		// send ack message out
-		c.networkUtility.sendMessage(ackMsg)
-
-		c.latestAckBuffer.Insert(ackMsg)
-		c.latestAckBuffer.AdjustUsingWindow(c.params.WindowSize)
 	}
 }
 
