@@ -3,7 +3,7 @@ Flight Reservation System on Paxos
 
 Project 3 of 15-640 Distributed System
 
-Flight Reservation Functionality:
+Flight Reservation Functionality:  
 Client:
 Check available flights, in a specified date range
 Reserve flight ticket, given flight id and date
