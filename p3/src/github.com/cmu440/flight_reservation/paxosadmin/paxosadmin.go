@@ -324,6 +324,17 @@ func RemovePeer(peers []string, removePeer string, sleepSecs int) error {
 		}
 	}
 
+	exist := false
+	for _, peer := range peers {
+		if peer == removePeer {
+			exist = true
+			break
+		}
+	}
+	if !exist {
+		return errors.New("the hostport of removed peer is not in the list of peers given")
+	}
+
 	goodPeersSet := make(map[string]bool)
 	var goodPeers []string
 	for peer, _ := range goodPeersmap {
